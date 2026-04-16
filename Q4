@@ -1,1 +1,87 @@
+import cv2
+import mediapipe as mp
 
+
+mp_drawing = mp.solutions.drawing_utils
+mp_hands = mp.solutions.hands
+
+
+toggle_count = 0
+last_status = "OFF"
+
+cap = cv2.VideoCapture(0)
+
+
+with mp_hands.Hands(
+        static_image_mode=False,
+        max_num_hands=1,
+        min_detection_confidence=0.7,
+        min_tracking_confidence=0.5) as hands:
+    while cap.isOpened():
+        ret, img = cap.read()
+        if not ret:
+            break
+
+
+        img = cv2.flip(img, 1)
+        height, width = img.shape[:2]
+
+
+        imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        imgRGB.flags.writeable = False
+        results = hands.process(imgRGB)
+        imgRGB.flags.writeable = True
+
+
+        current_gesture = "OFF"
+        switch_display = "Light: OFF (Fist)"
+        status_color = (0, 0, 255)
+
+
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+
+                mp_drawing.draw_landmarks(img, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+
+
+                tips_ids = [8, 12, 16, 20]
+                pips_ids = [6, 10, 14, 18]
+                extended_fingers = 0
+                for tip, pip in zip(tips_ids, pips_ids):
+                    if hand_landmarks.landmark[tip].y < hand_landmarks.landmark[pip].y:
+                        extended_fingers += 1
+
+
+                if extended_fingers >= 3:
+                    current_gesture = "ON"
+                    switch_display = "Light: ON (Open)"
+                    status_color = (0, 255, 0)
+
+
+        if current_gesture == "ON" and last_status == "OFF":
+            toggle_count += 1
+            last_status = "ON"
+        elif current_gesture == "OFF":
+            last_status = "OFF"
+
+
+        cv2.rectangle(img, (0, 0), (420, 150), (0, 0, 0), -1)
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+
+        cv2.putText(img, 'SWITCH CONTROL', (15, 35), font, 0.8, (255, 255, 255), 1)
+        cv2.putText(img, switch_display, (15, 80), font, 1.2, status_color, 1)
+
+
+        count_text = f"Total ON Count: {toggle_count}"
+        cv2.putText(img, count_text, (15, 130), font, 1.0, (255, 255, 0), 1)
+
+
+        cv2.imshow('Question 4 - Gesture Switch & Counter', img)
+
+
+        if cv2.waitKey(5) & 0xFF == 27:
+            break
+
+cap.release()
+cv2.destroyAllWindows()
